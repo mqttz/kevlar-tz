@@ -351,7 +351,7 @@ typedef struct AES_Cipher {
 	TEE_ObjectHandle key_handle;
 } AES_Cipher;
 
-TEE_Result alloc_resources(AES_Cipher *aes_c, uint32_t mode)
+TEE_Result alloc_resources(AES_Cipher *aes_c, uint32_t mode, char **dummy_key)
 {
 	TEE_Attribute attr;
 	TEE_Result res;
@@ -392,16 +392,15 @@ TEE_Result alloc_resources(AES_Cipher *aes_c, uint32_t mode)
 	}
 
 	/* Load Dummy Key */
-	/* FIXME when is this array freed? */
-	char *key;
-	key = TEE_Malloc(aes_c->key_size, 0);
-	if (!key) {
+	/* This array must be freed */
+	*dummy_key = TEE_Malloc(aes_c->key_size, 0);
+	if (!(*dummy_key)) {
 		EMSG("Out of memory.");
 		res = TEE_ERROR_OUT_OF_MEMORY;
 		goto err;
 	}
 
-	TEE_InitRefAttribute(&attr, TEE_ATTR_SECRET_VALUE, key, aes_c->key_size);
+	TEE_InitRefAttribute(&attr, TEE_ATTR_SECRET_VALUE, *dummy_key, aes_c->key_size);
 	res = TEE_PopulateTransientObject(aes_c->key_handle, &attr, 1);
 	if (res != TEE_SUCCESS) {
 		EMSG("TEE_PopulateTransientObject failed.");
@@ -430,8 +429,6 @@ TEE_Result set_aes_key(AES_Cipher *aes_c, const char *key)
 	TEE_Attribute attr;
 	TEE_Result res;
 
-	/* FIXME we should free previous key! */
-
 	/* Load key */
 	TEE_InitRefAttribute(&attr, TEE_ATTR_SECRET_VALUE, key, aes_c->key_size);
 	TEE_ResetTransientObject(aes_c->key_handle);
@@ -447,6 +444,7 @@ TEE_Result set_aes_key(AES_Cipher *aes_c, const char *key)
 		EMSG("TEE_SetOperationKey failed.");
 		return res;
 	}
+
 	return res;
 }
 
@@ -462,7 +460,9 @@ TEE_Result set_aes_iv(AES_Cipher *aes_c, const char *iv)
 TEE_Result cipher_update(AES_Cipher *aes_c, int mode, const char *key,
         const char *iv, const char *in, size_t in_sz, char *out, size_t *out_sz)
 {
-	if (alloc_resources(aes_c, mode) != TEE_SUCCESS) {
+	char *dummy_key;
+
+	if (alloc_resources(aes_c, mode, &dummy_key) != TEE_SUCCESS) {
 		EMSG("alloc_resources failed (mode: %d).", mode);
 	return TEE_ERROR_GENERIC;
 	}
@@ -471,6 +471,8 @@ TEE_Result cipher_update(AES_Cipher *aes_c, int mode, const char *key,
 		EMSG("set_aes_key failed (mode: %d).", mode);
 		return TEE_ERROR_GENERIC;
 	}
+
+	TEE_Free(dummy_key);
 
 	if (set_aes_iv(aes_c, iv) != TEE_SUCCESS) {
 		EMSG("set_aes_iv failed (mode: %d).", mode);
