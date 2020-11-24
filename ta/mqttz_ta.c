@@ -247,7 +247,10 @@ void cache_pop(Cache *cache)
 
 	/* update LRU/FIFO queue */
 	cache->last = old_last->prev_queue;
-	cache->last->next_queue = NULL;
+	if (cache->last != NULL)
+		cache->last->next_queue = NULL;
+	else
+		cache->first = NULL;
 
 	free_node(old_last);
 	cache->size -= 1;
