@@ -534,6 +534,8 @@ TEE_Result reencrypt(const char *orig_key, const char *dest_key, char *iv,
 	}
 
 	TEE_Free(dec_data);
+	TEE_FreeOperation(aes_c->op_handle);
+	TEE_FreeTransientObject(aes_c->key_handle);
 	TEE_Free(aes_c);        /* FIXME does this correctly free the structure? */
 
 	return TEE_SUCCESS;
@@ -823,14 +825,14 @@ TEE_Result encode_output(char *out, int *out_sz, const char *iv,
 	tmp = snprintf(out, *out_sz, "{iv: %s, payload: %s}", e_iv, e_cipher);
 	if (tmp >= *out_sz) {
 		EMSG("Message truncated. Buffer is too small.");
-		free(e_iv);
-		free(e_cipher);
+		TEE_Free(e_iv);
+		TEE_Free(e_cipher);
 		return TEE_ERROR_GENERIC;
 	}
 	*out_sz = tmp+1;
 
-	free(e_iv);
-	free(e_cipher);
+	TEE_Free(e_iv);
+	TEE_Free(e_cipher);
 	return TEE_SUCCESS;
 }
 
@@ -861,6 +863,8 @@ TEE_Result encrypt_id(const char *id, const char *key, char *iv, char *cipher,
 	}
 
 	TEE_Free(id_padded);
+	TEE_FreeOperation(aes_c->op_handle);
+	TEE_FreeTransientObject(aes_c->key_handle);
 	TEE_Free(aes_c);        /* FIXME does this correctly free the structure? */
 	return TEE_SUCCESS;
 }
