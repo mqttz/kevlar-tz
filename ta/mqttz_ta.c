@@ -49,54 +49,7 @@
 
 /* TODO check for MQTTZ_ID correctness */
 
-/* Cache module {{{
- *
- * The code in this section implements a cache (with policy LRU or FIFO) with
- * data that never changes (once a block has been stored with an ID, it can't be
- * changed, unless using a new ID).
- *
- * The cache assumes all entries have the same size (TA_MQTTZ_AES_KEY_SZ) and
- * the IDs are a 0-padded number of TA_MQTTZ_ID_SZ digits (doesn't need to be a
- * null-terminating string). The function to access the cache are the following:
- *
- *     static Cache * init_cache(int max_size, int hash_size, int policy)
- *     char * cache_query(Cache *cache, char *id)
- *     TEE_Result cache_save_object(Cache *cache, char *id, char *data)
- *
- * Which initialize the cache, return a copy of a value previously stored and
- * save a new object, respectively.
- */
-
-typedef struct Node {
-	char *id;
-	char *data;
-	struct Node *next_queue;
-	struct Node *prev_queue;
-	struct Node *next_hash;
-	struct Node *prev_hash;
-} Node;
-
-typedef struct Cache {
-	Node **elems;
-	Node *first;
-	Node *last;
-	int max_size;
-	int size;
-	int id_sz;
-	int data_sz;
-	int policy;
-	int hash_size;
-} Cache;
-
-/* Simplified atoi function. Only accepts unsigned integers and doesn't check
- * for incorrect input */
-int atoi(const char *str)
-{
-	int res = 0;
-	for (int i = 0; str[i] != '\0'; ++i)
-		res = res * 10 + str[i] - '0';
-	return res;
-}
+/* Persistent storage module {{{ */
 
 /* Read data from secure storage. */
 TEE_Result read_ss(const char *id, char *data, uint32_t *data_sz)
@@ -162,6 +115,57 @@ TEE_Result write_ss(const char *id, const char *data, uint32_t data_sz)
 	}
 
 	TEE_CloseObject(object);
+	return res;
+}
+
+/* End of persistent storage module }}} */
+
+/* Cache module {{{
+ *
+ * The code in this section implements a cache (with policy LRU or FIFO) with
+ * data that never changes (once a block has been stored with an ID, it can't be
+ * changed, unless using a new ID).
+ *
+ * The cache assumes all entries have the same size (TA_MQTTZ_AES_KEY_SZ) and
+ * the IDs are a 0-padded number of TA_MQTTZ_ID_SZ digits (doesn't need to be a
+ * null-terminating string). The function to access the cache are the following:
+ *
+ *     Cache * init_cache(int max_size, int hash_size, int id_sz, int data_sz, int policy)
+ *     char * cache_query(Cache *cache, char *id)
+ *     TEE_Result cache_save_object(Cache *cache, char *id, char *data)
+ *
+ * Which initialize the cache, return a copy of a value previously stored and
+ * save a new object, respectively.
+ */
+
+typedef struct Node {
+	char *id;
+	char *data;
+	struct Node *next_queue;
+	struct Node *prev_queue;
+	struct Node *next_hash;
+	struct Node *prev_hash;
+} Node;
+
+typedef struct Cache {
+	Node **elems;
+	Node *first;
+	Node *last;
+	int max_size;
+	int size;
+	int id_sz;
+	int data_sz;
+	int policy;
+	int hash_size;
+} Cache;
+
+/* Simplified atoi function. Only accepts unsigned integers and doesn't check
+ * for incorrect input */
+int atoi(const char *str)
+{
+	int res = 0;
+	for (int i = 0; str[i] != '\0'; ++i)
+		res = res * 10 + str[i] - '0';
 	return res;
 }
 
