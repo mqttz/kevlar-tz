@@ -47,8 +47,6 @@
 #include <string.h>
 #include <stdio.h>
 
-/* TODO check for MQTTZ_ID correctness */
-
 /* Persistent storage module {{{ */
 
 /* Read data from secure storage. */
@@ -543,7 +541,7 @@ TEE_Result reencrypt(const char *orig_key, const char *dest_key, char *iv,
 
 /* End of AES encryption and decryption module }}} */
 
-/* Base64 encode and decode {{{ */
+/* Base64 encode and decode module {{{ */
 
 static const unsigned char base64_table[65] =
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -671,7 +669,78 @@ int base64_decode(const unsigned char *src, int len, unsigned char *out)
 	return pos - out;
 }
 
-/* End of base64 encode and decode }}} */
+/* End of base64 encode and decode module }}} */
+
+/* TCP module {{{ */
+
+/* Connect to TCP socket */
+TEE_Result net_connect(TEE_iSocketHandle *sh)
+{
+	TEE_Result res;
+	char * mess;
+	uint32_t len, error_code;
+
+	TEE_tcpSocket_Setup setup = { };
+	setup.ipVersion = TEE_IP_VERSION_4;
+	setup.server_addr = strndup(TA_TCP_IP, strlen(TA_TCP_IP)+1);
+	setup.server_port = TA_TCP_PORT;
+
+	res = TEE_tcpSocket->open(sh, &setup, &error_code);
+	if (res != TEE_SUCCESS) {
+		EMSG("TEE_iSocket->open failed with code 0x%x", res);
+		return TEE_ERROR_GENERIC;
+	}
+
+	len = TA_TCP_MAX_PKG_SZ;
+	mess = TEE_Malloc(sizeof(char) * len, 0);
+	if (!mess) {
+		EMSG("Out of memory.");
+		TEE_Free(mess);
+		return TEE_ERROR_OUT_OF_MEMORY;
+	}
+
+	res = TEE_tcpSocket->ioctl(*sh, TEE_TCP_SET_RECVBUF, &mess, &len);
+	if (res != TEE_SUCCESS) {
+		EMSG("TEE_iSocket->ioctl failed with code 0x%x", res);
+		TEE_Free(mess);
+		return TEE_ERROR_GENERIC;
+	}
+
+	TEE_Free(mess);
+	return TEE_SUCCESS;
+}
+
+/* Disconnect from the socket */
+TEE_Result net_disconnect(TEE_iSocketHandle *sh)
+{
+	return TEE_tcpSocket->close(*sh);
+}
+
+/* Receive next package on the TCP socket */
+TEE_Result net_receive(TEE_iSocketHandle *sh, char *mess, uint32_t *len)
+{
+	TEE_Result res;
+
+	res = TEE_tcpSocket->recv(*sh, mess, len, TEE_TIMEOUT_INFINITE);
+	if (res != TEE_SUCCESS)
+		EMSG("TEE_iSocket->recv failed with code 0x%x", res);
+
+	return res;
+}
+
+/* Send package over the TCP socket */
+TEE_Result net_send(TEE_iSocketHandle *sh, char *mess, uint32_t *len)
+{
+	TEE_Result res;
+
+	res = TEE_tcpSocket->send(*sh, mess, len, TEE_TIMEOUT_INFINITE);
+	if (res != TEE_SUCCESS)
+		EMSG("TEE_iSocket->send failed with code 0x%x", res);
+	
+	return res;
+}
+
+/* End of TCP module }}} */
 
 /* Replaces first appearence of delim for '\0' and returns the position. If no
  * appearence of the character is found the function return -1. This function
@@ -957,48 +1026,29 @@ TEE_Result mqttz_ta(void)
 	TEE_Result res;
 	TEE_iSocketHandle sh;
 	TEE_iSocket *socket;
-	TEE_tcpSocket_Setup setup = { };
 	char *mess;
-	uint32_t len, error_code;
+	uint32_t len;
 
 	Cache *cache = init_cache(TA_CACHE_SZ, TA_CACHE_HASH_SZ, TA_MQTTZ_ID_SZ,
 	                          TA_MQTTZ_AES_KEY_SZ, TA_CACHE_POLICY_LRU);
 
-	/* TCP socket set up */
-	setup.ipVersion = TEE_IP_VERSION_4;
-	setup.server_addr = strndup(TA_TCP_IP, strlen(TA_TCP_IP)+1);
-	setup.server_port = TA_TCP_PORT;
-	socket = TEE_tcpSocket;
-
-	res = socket->open(&sh, &setup, &error_code);
+	res = net_connect(&sh);
 	if (res != TEE_SUCCESS)
-		EMSG("TEE_iSocket->open failed with code 0x%x", res);
+		return res;
 
 	len = TA_TCP_MAX_PKG_SZ;
 	mess = TEE_Malloc(sizeof(char) * len, 0);
-	if (!mess)
-		EMSG("Out of memory.");
-
-	res = TEE_tcpSocket->ioctl(sh, TEE_TCP_SET_RECVBUF, &mess, &len);
-	if (res != TEE_SUCCESS)
-		EMSG("TEE_iSocket->ioctl failed with code 0x%x", res);
 
 	while (res == TEE_SUCCESS) {
 		len = TA_TCP_MAX_PKG_SZ;
-		res = socket->recv(sh, mess, &len, TEE_TIMEOUT_INFINITE);
+		res = net_receive(&sh, mess, &len);
 		if (res != TEE_SUCCESS)
-			EMSG("TEE_iSocket->recv failed with code 0x%x", res);
-		printf("Bytes received: %i, message: %s\n", len, mess);
+			break;
 		process_request(cache, mess, &len);
-		printf("Want to send: %s, len: %i\n", mess, len);
-		res = socket->send(sh, mess, &len, TEE_TIMEOUT_INFINITE);
-		if (res != TEE_SUCCESS)
-			EMSG("TEE_iSocket->send failed with code 0x%x", res);
-		printf("Bytes sent: %i, message: %s\n", len, mess);
+		res = net_send(&sh, mess, &len);
 	}
 
-	res = socket->close(sh);
-
+	res = net_disconnect(&sh);
 	return res;
 }
 
