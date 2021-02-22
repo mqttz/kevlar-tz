@@ -1,2 +1,2 @@
 global-incdirs-y += include
-srcs-y += mqttz_ta.c
+srcs-y += kevlar_tz.c

@@ -12,7 +12,7 @@ CFLAGS += -Wall -I../ta/include -I./include
 CFLAGS += -I$(TEEC_EXPORT)/include
 LDADD += -lteec -L$(TEEC_EXPORT)/lib -lm
 
-BINARY = mqttz-ta
+BINARY = kevlar-tz
 
 .PHONY: all
 all: $(BINARY)

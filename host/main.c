@@ -1,11 +1,11 @@
 #include <tee_client_api.h>
 #include <err.h>
 
-#include <mqttz_ta.h>
+#include <kevlar_tz.h>
 
 void prepare_tee_session(TEEC_Context *ctx, TEEC_Session *sess)
 {
-	TEEC_UUID uuid = TA_MQTTZ_UUID;
+	TEEC_UUID uuid = TA_KEVLAR_UUID;
 	uint32_t origin;
 	TEEC_Result res;
 
@@ -37,7 +37,7 @@ int main(void)
 	TEEC_Result res;
 
 	prepare_tee_session(&ctx, &sess);
-	res = TEEC_InvokeCommand(&sess, TA_MQTTZ, NULL, &origin);
+	res = TEEC_InvokeCommand(&sess, TA_KEVLAR, NULL, &origin);
 	terminate_tee_session(&ctx, &sess);
 
 	if (res != TEEC_SUCCESS)

@@ -41,7 +41,7 @@
 #include <tee_tcpsocket.h>
 #include <__tee_tcpsocket_defines_extensions.h>
 
-#include <mqttz_ta.h>
+#include <kevlar_tz.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -124,8 +124,8 @@ TEE_Result write_ss(const char *id, const char *data, uint32_t data_sz)
  * data that never changes (once a block has been stored with an ID, it can't be
  * changed, unless using a new ID).
  *
- * The cache assumes all entries have the same size (TA_MQTTZ_AES_KEY_SZ) and
- * the IDs are a 0-padded number of TA_MQTTZ_ID_SZ digits (doesn't need to be a
+ * The cache assumes all entries have the same size (TA_KEVLAR_AES_KEY_SZ) and
+ * the IDs are a 0-padded number of TA_KEVLAR_ID_SZ digits (doesn't need to be a
  * null-terminating string). The function to access the cache are the following:
  *
  *     Cache * init_cache(int max_size, int hash_size, int id_sz, int data_sz, int policy)
@@ -321,6 +321,7 @@ char * cache_query(Cache *cache, const char *id)
 		node = node->next_hash;
 	}
 
+	/* TODO FIXME Looks like this is not getting freed */
 	data = (char *)TEE_Malloc(sizeof(char) * cache->data_sz, 0);
 	if (node == NULL) {     /* cache miss */
 		uint32_t data_sz = cache->data_sz;
@@ -362,7 +363,7 @@ TEE_Result alloc_resources(AES_Cipher *aes_c, uint32_t mode, char **dummy_key)
 	TEE_Result res;
 
 	aes_c->algo = TEE_ALG_AES_CBC_NOPAD;
-	aes_c->key_size = TA_MQTTZ_AES_KEY_SZ;
+	aes_c->key_size = TA_KEVLAR_AES_KEY_SZ;
 
 	if (mode != TEE_MODE_ENCRYPT && mode != TEE_MODE_DECRYPT) {
 		EMSG("AES mode not supported: %d.", mode);
@@ -455,7 +456,7 @@ TEE_Result set_aes_key(AES_Cipher *aes_c, const char *key)
 
 TEE_Result set_aes_iv(AES_Cipher *aes_c, const char *iv)
 {
-	TEE_CipherInit(aes_c->op_handle, iv, TA_MQTTZ_AES_IV_SZ);
+	TEE_CipherInit(aes_c->op_handle, iv, TA_KEVLAR_AES_IV_SZ);
 	return TEE_SUCCESS;
 }
 
@@ -505,7 +506,7 @@ TEE_Result reencrypt(const char *orig_key, const char *dest_key, char *iv,
 
 	aes_c = (AES_Cipher *)TEE_Malloc(sizeof(AES_Cipher), 0);
 
-	dec_data_sz = TA_MQTTZ_MAX_MSG_SZ;
+	dec_data_sz = TA_KEVLAR_MAX_MSG_SZ;
 	dec_data = (char *)TEE_Malloc(sizeof(char) * dec_data_sz, 0);
 	if (!dec_data) {
 		EMSG("Out of memory.\n");
@@ -520,9 +521,9 @@ TEE_Result reencrypt(const char *orig_key, const char *dest_key, char *iv,
 		return res;
 	}
 
-	TEE_GenerateRandom(iv, TA_MQTTZ_AES_IV_SZ);
+	TEE_GenerateRandom(iv, TA_KEVLAR_AES_IV_SZ);
 
-	*cipher_sz = TA_MQTTZ_MAX_MSG_SZ;
+	*cipher_sz = TA_KEVLAR_MAX_MSG_SZ;
 	res = cipher_update(aes_c, TEE_MODE_ENCRYPT, dest_key, iv, dec_data,
 	                    dec_data_sz, cipher, cipher_sz);
 
@@ -771,9 +772,9 @@ TEE_Result parse_input_reencrypt(char *mess, char *orig_id, char *dest_id,
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 	tmp_sz = strlen(ptr);
-	if (tmp_sz != TA_MQTTZ_ID_SZ) {
-		EMSG("Origin MQT-TZ ID size is %ld and should be %d.", tmp_sz,
-		     TA_MQTTZ_ID_SZ);
+	if (tmp_sz != TA_KEVLAR_ID_SZ) {
+		EMSG("Origin KEVLAR-TZ ID size is %ld and should be %d.", tmp_sz,
+		     TA_KEVLAR_ID_SZ);
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 
@@ -786,9 +787,9 @@ TEE_Result parse_input_reencrypt(char *mess, char *orig_id, char *dest_id,
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 	tmp_sz = strlen(ptr);
-	if (tmp_sz != TA_MQTTZ_ID_SZ) {
-		EMSG("Destination MQT-TZ ID size is %ld and should be %d.", tmp_sz,
-		     TA_MQTTZ_ID_SZ);
+	if (tmp_sz != TA_KEVLAR_ID_SZ) {
+		EMSG("Destination KEVLAR-TZ ID size is %ld and should be %d.", tmp_sz,
+		     TA_KEVLAR_ID_SZ);
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 
@@ -801,15 +802,15 @@ TEE_Result parse_input_reencrypt(char *mess, char *orig_id, char *dest_id,
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 	tmp_sz = base64_decode_length((unsigned char *)ptr);
-	if (tmp_sz != TA_MQTTZ_AES_IV_SZ) {
+	if (tmp_sz != TA_KEVLAR_AES_IV_SZ) {
 		EMSG("IV length is %ld and should be %d.", tmp_sz,
-		     TA_MQTTZ_AES_IV_SZ);
+		     TA_KEVLAR_AES_IV_SZ);
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 
 	tmp_sz = base64_decode((unsigned char *)ptr, strlen(ptr),
 	                       (unsigned char *)iv);
-	if (tmp_sz != TA_MQTTZ_AES_IV_SZ) {
+	if (tmp_sz != TA_KEVLAR_AES_IV_SZ) {
 		EMSG("Error decoding base64 IV.");
 		return TEE_ERROR_GENERIC;
 	}
@@ -839,9 +840,9 @@ TEE_Result parse_input_store(char *mess, char *orig_id, char *iv,
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 	tmp_sz = strlen(ptr);
-	if (tmp_sz != TA_MQTTZ_ID_SZ) {
-		EMSG("MQT-TZ ID size is %ld and should be %d.", tmp_sz,
-		     TA_MQTTZ_ID_SZ);
+	if (tmp_sz != TA_KEVLAR_ID_SZ) {
+		EMSG("KEVLAR-TZ ID size is %ld and should be %d.", tmp_sz,
+		     TA_KEVLAR_ID_SZ);
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 
@@ -854,13 +855,13 @@ TEE_Result parse_input_store(char *mess, char *orig_id, char *iv,
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 	tmp_sz = base64_decode_length(ptr);
-	if (tmp_sz != TA_MQTTZ_AES_IV_SZ) {
-		EMSG("IV length is %ld and should be %d.", tmp_sz, TA_MQTTZ_AES_IV_SZ);
+	if (tmp_sz != TA_KEVLAR_AES_IV_SZ) {
+		EMSG("IV length is %ld and should be %d.", tmp_sz, TA_KEVLAR_AES_IV_SZ);
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 	tmp_sz = base64_decode((unsigned char *)ptr, strlen(ptr),
 	                       (unsigned char *)iv);
-	if (tmp_sz != TA_MQTTZ_AES_IV_SZ) {
+	if (tmp_sz != TA_KEVLAR_AES_IV_SZ) {
 		EMSG("Error decoding base64 IV.");
 		return TEE_ERROR_GENERIC;
 	}
@@ -876,7 +877,7 @@ TEE_Result parse_input_store(char *mess, char *orig_id, char *iv,
 	return TEE_SUCCESS;
 }
 
-/* Encodes the encrypted data as MQT-TZ expects it. */
+/* Encodes the encrypted data as KEVLAR-TZ expects it. */
 TEE_Result encode_output(char *out, int *out_sz, const char *iv,
         const char *cipher, int *cipher_sz)
 {
@@ -884,8 +885,8 @@ TEE_Result encode_output(char *out, int *out_sz, const char *iv,
 	int tmp;
 
 	e_iv = (unsigned char *)TEE_Malloc(sizeof(char) *
-	                                   ((TA_MQTTZ_AES_IV_SZ + 2)/3 * 4 + 1), 0);
-	base64_encode((unsigned char *)iv, TA_MQTTZ_AES_IV_SZ, e_iv);
+	                                   ((TA_KEVLAR_AES_IV_SZ + 2)/3 * 4 + 1), 0);
+	base64_encode((unsigned char *)iv, TA_KEVLAR_AES_IV_SZ, e_iv);
 
 	e_cipher = (unsigned char *)TEE_Malloc(sizeof(char) *
 	                                       ((*cipher_sz + 2)/3 * 4 + 1), 0);
@@ -905,8 +906,8 @@ TEE_Result encode_output(char *out, int *out_sz, const char *iv,
 	return TEE_SUCCESS;
 }
 
-/* Encrypts the MQT-TZ ID of the client. This is used for the response to a new
- * key store call. */
+/* Encrypts the KEVLAR-TZ ID of the client. This is used for the response to a
+ * new key store call. */
 TEE_Result encrypt_id(const char *id, const char *key, char *iv, char *cipher,
         int *cipher_sz)
 {
@@ -916,13 +917,13 @@ TEE_Result encrypt_id(const char *id, const char *key, char *iv, char *cipher,
 	int id_padded_sz;
 
 	aes_c = (AES_Cipher *)TEE_Malloc(sizeof(AES_Cipher), 0);
-	TEE_GenerateRandom(iv, TA_MQTTZ_AES_IV_SZ);
+	TEE_GenerateRandom(iv, TA_KEVLAR_AES_IV_SZ);
 
-	/* Make PKCS padding (the default for OpenSSL and the one MQT-TZ expects) */
-	id_padded_sz = (TA_MQTTZ_ID_SZ/16 + 1) * 16;
+	/* Make PKCS padding (the default for OpenSSL and the one KEVLAR-TZ expects) */
+	id_padded_sz = (TA_KEVLAR_ID_SZ/16 + 1) * 16;
 	id_padded = (char *)TEE_Malloc(sizeof(char) * id_padded_sz, 0);
-	TEE_MemFill(id_padded, id_padded_sz - TA_MQTTZ_ID_SZ, id_padded_sz);
-	TEE_MemMove(id_padded, id, TA_MQTTZ_ID_SZ);
+	TEE_MemFill(id_padded, id_padded_sz - TA_KEVLAR_ID_SZ, id_padded_sz);
+	TEE_MemMove(id_padded, id, TA_KEVLAR_ID_SZ);
 
 	res = cipher_update(aes_c, TEE_MODE_ENCRYPT, key, iv, id_padded,
 	                    id_padded_sz, cipher, cipher_sz);
@@ -956,10 +957,10 @@ TEE_Result process_request(Cache *cache, char *mess, int *len)
 
 	/* TODO check the return values for the function call to check for errors */
 	if (mess[0] == 'R') {            /* Reencryption */
-		orig_id = (char *)TEE_Malloc(sizeof(char) * (TA_MQTTZ_ID_SZ + 1), 0);
-		dest_id = (char *)TEE_Malloc(sizeof(char) * (TA_MQTTZ_ID_SZ + 1), 0);
-		iv = (char *)TEE_Malloc(sizeof(char) * (TA_MQTTZ_AES_IV_SZ + 1), 0);
-		cipher = (char *)TEE_Malloc(sizeof(char) * (TA_MQTTZ_MAX_MSG_SZ + 1), 0);
+		orig_id = (char *)TEE_Malloc(sizeof(char) * (TA_KEVLAR_ID_SZ + 1), 0);
+		dest_id = (char *)TEE_Malloc(sizeof(char) * (TA_KEVLAR_ID_SZ + 1), 0);
+		iv = (char *)TEE_Malloc(sizeof(char) * (TA_KEVLAR_AES_IV_SZ + 1), 0);
+		cipher = (char *)TEE_Malloc(sizeof(char) * (TA_KEVLAR_MAX_MSG_SZ + 1), 0);
 
 		/* Parse and decode the input string into the variables it contains */
 		parse_input_reencrypt(mess+1, orig_id, dest_id, iv, cipher, &cipher_sz);
@@ -971,7 +972,7 @@ TEE_Result process_request(Cache *cache, char *mess, int *len)
 		/* Reencrypt the payload with the retreived keys */
 		reencrypt(orig_key, dest_key, iv, cipher, &cipher_sz);
 
-		/* Encode output for MQT-TZ broker */
+		/* Encode output for untrusted application broker */
 		*len = TA_TCP_MAX_PKG_SZ;
 		encode_output(mess, len, iv, cipher, &cipher_sz);
 
@@ -980,30 +981,30 @@ TEE_Result process_request(Cache *cache, char *mess, int *len)
 		TEE_Free(iv);
 		TEE_Free(cipher);
 	} else if (mess[0] == 'N') {     /* Store new key */
-		orig_id = (char *)TEE_Malloc(sizeof(char) * (TA_MQTTZ_ID_SZ + 1), 0);
-		iv = (char *)TEE_Malloc(sizeof(char) * (TA_MQTTZ_AES_IV_SZ + 1), 0);
-		cipher = (char *)TEE_Malloc(sizeof(char) * (TA_MQTTZ_MAX_MSG_SZ + 1), 0);
-		orig_key = (char *)TEE_Malloc(sizeof(char) * (TA_MQTTZ_AES_KEY_SZ + 1), 0);
+		orig_id = (char *)TEE_Malloc(sizeof(char) * (TA_KEVLAR_ID_SZ + 1), 0);
+		iv = (char *)TEE_Malloc(sizeof(char) * (TA_KEVLAR_AES_IV_SZ + 1), 0);
+		cipher = (char *)TEE_Malloc(sizeof(char) * (TA_KEVLAR_MAX_MSG_SZ + 1), 0);
+		orig_key = (char *)TEE_Malloc(sizeof(char) * (TA_KEVLAR_AES_KEY_SZ + 1), 0);
 
 		parse_input_store(mess+1, orig_id, iv, cipher, &cipher_sz);
 
 		/* Here we should decrypt the cipher, but for now, the key is sent
 		 * unencrypted */
-		if (cipher_sz != TA_MQTTZ_AES_KEY_SZ) {
-			EMSG("Key length is %d and should be %d.", cipher_sz, TA_MQTTZ_AES_KEY_SZ);
+		if (cipher_sz != TA_KEVLAR_AES_KEY_SZ) {
+			EMSG("Key length is %d and should be %d.", cipher_sz, TA_KEVLAR_AES_KEY_SZ);
 			return TEE_ERROR_BAD_PARAMETERS;
 		}
-		TEE_MemMove(orig_key, cipher, TA_MQTTZ_AES_KEY_SZ);
+		TEE_MemMove(orig_key, cipher, TA_KEVLAR_AES_KEY_SZ);
 
 		/* Save new key */
 		cache_save_object(cache, orig_id, orig_key);
 
-		/* Encrypt the ID to return to MQT-TZ */
-		cipher_sz = TA_MQTTZ_MAX_MSG_SZ;
+		/* Encrypt the ID to return to untrusted application */
+		cipher_sz = TA_KEVLAR_MAX_MSG_SZ;
 		encrypt_id(orig_id, orig_key, iv, cipher, &cipher_sz);
 		MSG("cipher_sz: %i", cipher_sz);
 
-		/* Encode output for MQT-TZ broker */
+		/* Encode output for untrusted application broker */
 		*len = TA_TCP_MAX_PKG_SZ;
 		encode_output(mess, len, iv, cipher, &cipher_sz);
 
@@ -1021,16 +1022,15 @@ TEE_Result process_request(Cache *cache, char *mess, int *len)
 
 /* The main function. It connects to TCP server and calls process_request every
  * time it gets data through TCP. It also sends the response. */
-TEE_Result mqttz_ta(void)
+TEE_Result kevlar_tz(void)
 {
 	TEE_Result res;
 	TEE_iSocketHandle sh;
-	TEE_iSocket *socket;
 	char *mess;
 	uint32_t len;
 
-	Cache *cache = init_cache(TA_CACHE_SZ, TA_CACHE_HASH_SZ, TA_MQTTZ_ID_SZ,
-	                          TA_MQTTZ_AES_KEY_SZ, TA_CACHE_POLICY_LRU);
+	Cache *cache = init_cache(TA_CACHE_SZ, TA_CACHE_HASH_SZ, TA_KEVLAR_ID_SZ,
+	                          TA_KEVLAR_AES_KEY_SZ, TA_CACHE_POLICY_LRU);
 
 	res = net_connect(&sh);
 	if (res != TEE_SUCCESS)
@@ -1079,8 +1079,8 @@ TEE_Result TA_InvokeCommandEntryPoint(void __unused *session, uint32_t command,
         uint32_t __unused param_types, TEE_Param __unused params[4])
 {
 	switch (command) {
-	case TA_MQTTZ:
-		return mqttz_ta();
+	case TA_KEVLAR:
+		return kevlar_tz();
 	default:
 		EMSG("Command ID 0x%x is not supported", command);
 		return TEE_ERROR_NOT_SUPPORTED;

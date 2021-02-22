@@ -1,4 +1,4 @@
-project (mqttz-ta C)
+project (kevlar-tz C)
 
 set (SRC host/main.c)
 
