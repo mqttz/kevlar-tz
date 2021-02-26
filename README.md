@@ -11,7 +11,7 @@ OP-TEE with KEVLAR-TZ, you can simply run the script `install.sh` on this
 repository (only tested on Ubuntu 20.04):
 
 ```
-https://raw.githubusercontent.com/mqttz/kevlar-tz/master/install.sh | bash -s qemu
+curl -s https://raw.githubusercontent.com/mqttz/kevlar-tz/master/install.sh | bash -s qemu
 ```
 
 You can change `qemu` for `rpi3` and it will do the installation for the
