@@ -7,7 +7,20 @@ tested on Raspberry Pi 3 Model B+ and on QEMU version 8.
 ## Build and run
 
 KEVLAR-TZ is designed to be compiled as part of [OP-TEE][]. To build and run
-OP-TEE with KEVLAR-TZ:
+OP-TEE with KEVLAR-TZ, you can simply run the script `install.sh` on this
+repository (only tested on Ubuntu 20.04):
+
+```
+https://raw.githubusercontent.com/mqttz/kevlar-tz/master/install.sh | bash -s qemu
+```
+
+You can change `qemu` for `rpi3` and it will do the installation for the
+Raspberry Pi. The script will print information on how to continue.
+
+### Manual installation
+
+If you are not running Ubuntu 20.04 or want to install OP-TEE and KEVLAR-TZ
+manually, you can following these steps:
 
 1. Build and run OP-TEE (follow the instructions [here][i1] and [here][i2]).
    This will download all the necessary files and put them all inside the
@@ -43,10 +56,12 @@ To run KEVLAR-TZ along with [MQT-TZ][], download MQT-TZ and follow the
 instructions on [mqttz/mqttz-br-package][] to use it with OP-TEE. Once you have
 successfully build OP-TEE with both programs, login as root and run the
 following:
+
 ```
 mosquitto &
 kevlar-tz &
 ```
+
 The first command start the MQT-TZ broker, and the second one starts KEVLAR-TZ
 (which will automatically connect to the broker using TCP). You will now be able
 to use the broker normally.
